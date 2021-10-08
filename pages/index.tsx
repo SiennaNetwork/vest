@@ -347,18 +347,18 @@ const ClaimTopNavBarRight = styled.div<{ $isAuthorized?: boolean }>`
   }
 `;
 
-const ViewSienna = styled.button<{ isSwapComplete?: boolean }>`
-  width: 184px;
-  height: 40px;
-  border: 1px solid ${defaultColors.white};
-  background: ${(props) => (props.isSwapComplete ? defaultColors.swapBlue : defaultColors.primary)};
-  color: ${(props) => (props.isSwapComplete ? '#fff' : '#fff')};
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: 20px;
-  cursor: pointer;
-  margin-top: 24px;
-`;
+// const ViewSienna = styled.button<{ isSwapComplete?: boolean }>`
+//   width: 184px;
+//   height: 40px;
+//   border: 1px solid ${defaultColors.white};
+//   background: ${(props) => (props.isSwapComplete ? defaultColors.swapBlue : defaultColors.primary)};
+//   color: ${(props) => (props.isSwapComplete ? '#fff' : '#fff')};
+//   font-size: 14px;
+//   font-weight: 600;
+//   border-radius: 20px;
+//   cursor: pointer;
+//   margin-top: 24px;
+// `;
 
 const ClaimBodyMobile = styled(Row)`
   margin: 0;
@@ -459,47 +459,47 @@ const DummyRightSide = styled(Col)<{ $isKeplr: boolean }>`
   background: ${(props) => (props.$isKeplr ? '#fff' : defaultColors.blackStone20)};
 `;
 
-const ClaimBodyRight = styled.div<{ $isKeplr?: boolean }>`
-  position: absolute;
-  width: ${(props) => (props.$isKeplr ? '50%' : '0%')};
-  height: 90vh;
-  top: 10vh;
-  right: 0;
-  overflow: hidden;
+// const ClaimBodyRight = styled.div<{ $isKeplr?: boolean }>`
+//   position: absolute;
+//   width: ${(props) => (props.$isKeplr ? '50%' : '0%')};
+//   height: 90vh;
+//   top: 10vh;
+//   right: 0;
+//   overflow: hidden;
 
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  transition: 2s;
-  z-index: 10;
+//   display: flex;
+//   flex-direction: column;
+//   justify-content: center;
+//   align-items: center;
+//   transition: 2s;
+//   z-index: 10;
 
-  > h2 {
-    font-size: 60px;
-    font-weight: 800;
-    line-height: initial;
-    width: 319px;
-    color: ${defaultColors.blackStone80};
-    margin-bottom: 12px;
-  }
+//   > h2 {
+//     font-size: 60px;
+//     font-weight: 800;
+//     line-height: initial;
+//     width: 319px;
+//     color: ${defaultColors.blackStone80};
+//     margin-bottom: 12px;
+//   }
 
-  > p {
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 24px;
-    width: 320px;
-    margin-top: 10px;
-  }
+//   > p {
+//     font-size: 14px;
+//     font-weight: 400;
+//     line-height: 24px;
+//     width: 320px;
+//     margin-top: 10px;
+//   }
 
-  > div {
-    > p {
-      height: 20px;
-      font-style: italic;
-      margin-top: 19px;
-      font-size: 16px;
-    }
-  }
-`;
+//   > div {
+//     > p {
+//       height: 20px;
+//       font-style: italic;
+//       margin-top: 19px;
+//       font-size: 16px;
+//     }
+//   }
+// `;
 
 const UnlockButtonCSS = css`
   pointer-events: initial;
