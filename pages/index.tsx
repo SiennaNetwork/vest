@@ -103,7 +103,7 @@ const Claim: React.FC<Props> = ({}) => {
 
       notify.success(`Successfully called vest on RPT`, 4.5);
     } catch (error) {
-      console.log('Message', error.message);
+      console.warn('Error', error);
 
       notify.error(`Error calling vest on RPT`, 4.5, 'Error', JSON.stringify(error.message));
 
@@ -280,10 +280,10 @@ const Claim: React.FC<Props> = ({}) => {
           <div>
             <h4>Success!</h4>
             <p>You have just called vest on RPT</p>
-            <button>
+            {/* <button>
               View transaction
               <Img src="/icons/top-right-icon-dark.svg" alt="go to" />
-            </button>
+            </button> */}
 
             <div></div>
 
