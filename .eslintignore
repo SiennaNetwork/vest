@@ -1,0 +1,11 @@
+# /node_modules/* in the project root is ignored by default
+# data definition files
+**/*.d.ts
+
+# Next.js
+/.next/
+next.config.js
+next-env.d.ts
+
+#Bridge Page
+/pages/bridge/index.tsx
