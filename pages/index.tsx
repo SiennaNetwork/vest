@@ -17,7 +17,7 @@ import ConnectWalletButton from '../components/ConnectWalletButton';
 import ConnectWalletView from '../components/ConnectWalletView';
 import ClaimButton from '../components/ClaimButton';
 // import PreLoadIndicator from '../components/PreLoadIndicator';
-// import { FaGithub } from 'react-icons/fa';
+import { FaGithub } from 'react-icons/fa';
 import { IStore } from '../redux/store';
 import { getFeeForExecute } from '../api/utils';
 
@@ -131,14 +131,14 @@ const Claim: React.FC<Props> = ({}) => {
     dispatch({ type: CHECK_KEPLR_REQUESTED });
   };
 
-  // const goToEarn = () => {
-  //   const a = document.createElement('a');
-  //   a.href = 'https://app.sienna.network/swap/earn';
-  //   a.target = '_blank';
-  //   a.rel = 'noopener norefferer';
-  //   a.click();
-  //   return;
-  // };
+  const goToGithub = () => {
+    const a = document.createElement('a');
+    a.href = 'https://github.com/SiennaNetwork/vest';
+    a.target = '_blank';
+    a.rel = 'noopener norefferer';
+    a.click();
+    return;
+  };
 
   const checkWindowSize = () => {
     let isMobile: boolean;
@@ -291,6 +291,18 @@ const Claim: React.FC<Props> = ({}) => {
           </div>
         </ClaimSuccessful>
       )}
+
+      <FaGithub
+        onClick={goToGithub}
+        style={{
+          position: 'fixed',
+          bottom: 10,
+          left: 10,
+          width: 35,
+          height: 35,
+          cursor: 'pointer',
+        }}
+      />
     </ClaimContainer>
   );
 };
