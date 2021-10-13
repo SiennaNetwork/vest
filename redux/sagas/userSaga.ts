@@ -47,7 +47,7 @@ function* checkKeplr() {
       },
     });
 
-    yield call(getBalanceSIENNA, secretjs, address);
+    // yield call(getBalanceSIENNA, secretjs, address);
   } catch (error) {
     console.log('saga keplr error: ', error);
 

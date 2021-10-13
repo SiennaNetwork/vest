@@ -1,15 +1,10 @@
-import styled, { css } from 'styled-components';
+import styled from 'styled-components';
 import React, { useState, useEffect } from 'react';
 import { Row, Col } from 'reactstrap';
 import { useDispatch, useSelector } from 'react-redux';
-import { callVestOnRPT } from '../api/vesting';
-import { unlockToken } from '../constants';
+import { callVestOnRPT, queryRPTStatus } from '../api/vesting';
 import { useBreakpoint } from '../hooks/breakpoints';
-import {
-  CHECK_KEPLR_REQUESTED,
-  SHOW_HIDDEN_TOKEN_BALANCE_REQUESTED,
-  KEPLR_SIGN_OUT,
-} from '../redux/actions/user';
+import { CHECK_KEPLR_REQUESTED, KEPLR_SIGN_OUT } from '../redux/actions/user';
 import { defaultColors } from '../styles/theme';
 import notify from '../utils/notifications';
 import NavBarLogo from '../components/NavBarLogo';
@@ -19,7 +14,7 @@ import ClaimButton from '../components/ClaimButton';
 import { FaGithub } from 'react-icons/fa';
 import { IStore } from '../redux/store';
 import { getFeeForExecute } from '../api/utils';
-
+import { RPTStatus } from '../api/vesting';
 interface Props {
   onClickConnectWallet: (e: React.SyntheticEvent) => void;
 }
@@ -30,19 +25,13 @@ const Claim: React.FC<Props> = ({}) => {
   const [nextButtonLoading, setNextButtonLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  const [canVest, setCanVest] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [rptStatus, setRptStatus] = useState<RPTStatus>(undefined);
+
   const user = useSelector((state: IStore) => state.user);
   const breakpoint = useBreakpoint();
   const dispatch = useDispatch();
-
-  const isUnlock = user.balanceSIENNA === unlockToken;
-
-  const renderBalanceSIENNA = () => {
-    if (isUnlock) {
-      return 'View Balance';
-    }
-
-    return `${user.balanceSIENNA} SIENNA` || '0 SIENNA';
-  };
 
   useEffect(() => {
     dispatch({ type: CHECK_KEPLR_REQUESTED });
@@ -51,6 +40,10 @@ const Claim: React.FC<Props> = ({}) => {
   useEffect(() => {
     if (user.secretjs && user.isKeplrInstalled) {
       setShowConnectWalletView(false);
+    }
+
+    if (user.secretjs && !rptStatus) {
+      getRPTStatus();
     }
   }, [user.secretjs, user.isKeplrInstalled]);
 
@@ -61,16 +54,24 @@ const Claim: React.FC<Props> = ({}) => {
     }
   }, [user, showConnectWalletView]);
 
-  const onClickUnlockToken = (e: React.SyntheticEvent) => {
-    e.stopPropagation();
+  const getRPTStatus = async () => {
+    try {
+      setIsLoading(true);
 
-    dispatch({
-      type: SHOW_HIDDEN_TOKEN_BALANCE_REQUESTED,
-      payload: {
-        tokenAddress: process.env.SIENNA_CONTRACT,
-        symbol: undefined,
-      },
-    });
+      const status = await queryRPTStatus(user.secretjs, Date.now());
+
+      setCanVest(status.progress.claimed !== status.progress.unlocked);
+      setIsLoading(false);
+      setRptStatus(status);
+
+      console.warn('RPT status: ', status);
+    } catch (error) {
+      setCanVest(false);
+      setIsLoading(false);
+
+      notify.error(`Failed getting RPT status`, 10, 'Error', JSON.stringify(error.message));
+      console.warn('Error getting RPT status: ', error);
+    }
   };
 
   // user clicks on connect/disconnect wallet button
@@ -173,13 +174,8 @@ const Claim: React.FC<Props> = ({}) => {
 
           {user.isKeplrAuthorized ? (
             <ClaimTopNavBarRight $isAuthorized={user.isKeplrAuthorized}>
-              <span>Balance:</span>
-              <UnlockTokenButton onClick={onClickUnlockToken} isUnlock={isUnlock}>
-                {renderBalanceSIENNA()}
-              </UnlockTokenButton>
-
               {user.isKeplrAuthorized && (
-                <DisconnectWalletButton onClick={disconnectWallet} isUnlock={isUnlock}>
+                <DisconnectWalletButton onClick={disconnectWallet}>
                   Disconnect Wallet
                 </DisconnectWalletButton>
               )}
@@ -211,7 +207,7 @@ const Claim: React.FC<Props> = ({}) => {
                 width="16.64"
                 height="16"
                 onClick={onClickVestNow}
-                disabled={false}
+                disabled={isLoading || !canVest}
                 prefixIcon={nextButtonLoading}
               />
             ) : (
@@ -222,7 +218,7 @@ const Claim: React.FC<Props> = ({}) => {
                 width="16.64"
                 height="16"
                 onClick={connectKeplr}
-                disabled={false}
+                disabled={isLoading || !canVest}
                 containerStyle={{
                   backgroundColor: defaultColors.swapBlue,
                 }}
@@ -244,24 +240,66 @@ const Claim: React.FC<Props> = ({}) => {
             $isKeplr={user.isKeplrAuthorized}
           ></DummyRightSide>
 
-          {/* {user.isKeplrAuthorized ? (
-            <ClaimBodyRight $isKeplr={user.isKeplrAuthorized}>
-              <h2></h2>
+          <ClaimBodyRight $isKeplr={user.isKeplrAuthorized}>
+            <h2>RPT Status</h2>
 
-              <p>
-                Remember, you can <strong>stake SIENNA</strong> or become a liquidity provider
-                on SiennaSwap, where you can earn even more SIENNA.
-              </p>
+            <RowDiv>
+              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+                Claimed
+              </StatusText>
+              <StatusText textAlign="right">
+                {rptStatus ? rptStatus.progress.claimed : 'Loading'}
+              </StatusText>
+            </RowDiv>
 
-              <div style={{ width: '319px', marginBottom: '88px' }}>
-                <ViewSienna isSwapComplete={false} onClick={() => goToEarn()}>
-                  Earn SIENNA
-                </ViewSienna>
-              </div>
-            </ClaimBodyRight>
-          ) : (
-            <ClaimBodyRight>&nbsp;</ClaimBodyRight>
-          )} */}
+            <RowDiv>
+              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+                Unlocked
+              </StatusText>
+              <StatusText textAlign="right">
+                {rptStatus ? rptStatus.progress.unlocked : 'Loading'}
+              </StatusText>
+            </RowDiv>
+
+            <RowDiv>
+              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+                Elapsed
+              </StatusText>
+              <StatusText textAlign="right">
+                {rptStatus ? rptStatus.progress.elapsed : 'Loading'}
+              </StatusText>
+            </RowDiv>
+
+            <RowDiv>
+              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+                Launched
+              </StatusText>
+              <StatusText textAlign="right">
+                {rptStatus ? rptStatus.progress.launched : 'Loading'}
+              </StatusText>
+            </RowDiv>
+
+            <RowDiv>
+              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+                Time
+              </StatusText>
+              <StatusText textAlign="right">
+                {rptStatus ? rptStatus.progress.time : 'Loading'}
+              </StatusText>
+            </RowDiv>
+
+            <div style={{ width: '319px', marginBottom: '88px' }}>
+              <ViewSienna
+                disabled={isLoading}
+                isSwapComplete={false}
+                onClick={() => {
+                  getRPTStatus();
+                }}
+              >
+                {isLoading ? 'Checking...' : 'Check Status'}
+              </ViewSienna>
+            </div>
+          </ClaimBodyRight>
         </ClaimBody>
       )}
 
@@ -293,6 +331,18 @@ const Claim: React.FC<Props> = ({}) => {
 };
 
 export default Claim;
+
+const StatusText = styled.div<{ textAlign: string; bold?: boolean }>`
+  font-size: 13px;
+  text-align: ${(props) => props.textAlign};
+  font-weight: ${(props) => (props.bold ? 'bold' : 'normal')};
+`;
+
+const RowDiv = styled.div`
+  display: flex;
+  justify-content: space-between;
+  width: 310px;
+`;
 
 const ClaimContainer = styled.div`
   padding: 0;
@@ -342,18 +392,18 @@ const ClaimTopNavBarRight = styled.div<{ $isAuthorized?: boolean }>`
   }
 `;
 
-// const ViewSienna = styled.button<{ isSwapComplete?: boolean }>`
-//   width: 184px;
-//   height: 40px;
-//   border: 1px solid ${defaultColors.white};
-//   background: ${(props) => (props.isSwapComplete ? defaultColors.swapBlue : defaultColors.primary)};
-//   color: ${(props) => (props.isSwapComplete ? '#fff' : '#fff')};
-//   font-size: 14px;
-//   font-weight: 600;
-//   border-radius: 20px;
-//   cursor: pointer;
-//   margin-top: 24px;
-// `;
+const ViewSienna = styled.button<{ isSwapComplete?: boolean }>`
+  width: 184px;
+  height: 40px;
+  border: 1px solid ${defaultColors.white};
+  background: ${(props) => (props.isSwapComplete ? defaultColors.swapBlue : defaultColors.primary)};
+  color: ${(props) => (props.isSwapComplete ? '#fff' : '#fff')};
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 20px;
+  cursor: pointer;
+  margin-top: 24px;
+`;
 
 const ClaimBodyMobile = styled(Row)`
   margin: 0;
@@ -399,8 +449,6 @@ const ClaimBodyLeftMobile = styled(Col)<{ $darkMode?: boolean }>`
       width: 101px;
       height: 30px;
     }
-  }
-
   }
 `;
 
@@ -454,86 +502,30 @@ const DummyRightSide = styled(Col)<{ $isKeplr: boolean }>`
   background: ${(props) => (props.$isKeplr ? '#fff' : defaultColors.blackStone20)};
 `;
 
-// const ClaimBodyRight = styled.div<{ $isKeplr?: boolean }>`
-//   position: absolute;
-//   width: ${(props) => (props.$isKeplr ? '50%' : '0%')};
-//   height: 90vh;
-//   top: 10vh;
-//   right: 0;
-//   overflow: hidden;
+const ClaimBodyRight = styled.div<{ $isKeplr?: boolean }>`
+  position: absolute;
+  width: ${(props) => (props.$isKeplr ? '50%' : '0%')};
+  height: 90vh;
+  top: 10vh;
+  right: 0;
+  overflow: hidden;
 
-//   display: flex;
-//   flex-direction: column;
-//   justify-content: center;
-//   align-items: center;
-//   transition: 2s;
-//   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  transition: 2s;
+  z-index: 10;
 
-//   > h2 {
-//     font-size: 60px;
-//     font-weight: 800;
-//     line-height: initial;
-//     width: 319px;
-//     color: ${defaultColors.blackStone80};
-//     margin-bottom: 12px;
-//   }
+  > h2 {
+    font-size: 60px;
 
-//   > p {
-//     font-size: 14px;
-//     font-weight: 400;
-//     line-height: 24px;
-//     width: 320px;
-//     margin-top: 10px;
-//   }
-
-//   > div {
-//     > p {
-//       height: 20px;
-//       font-style: italic;
-//       margin-top: 19px;
-//       font-size: 16px;
-//     }
-//   }
-// `;
-
-const UnlockButtonCSS = css`
-  pointer-events: initial;
-  border: 1px solid black;
-  padding-left: 10px;
-  padding-right: 10px;
-  border-radius: 20px;
-  background: ${(props) => props.theme.colors.text};
-  color: ${(props) => props.theme.colors.textInverted};
-  font-size: 11px;
-  padding-top: 1px;
-  padding-bottom: 1px;
-
-  &:hover {
-    opacity: 0.7;
+    font-weight: 800;
+    line-height: initial;
+    width: 319px;
+    color: ${defaultColors.blackStone80};
+    margin-bottom: 12px;
   }
-`;
-
-const UnlockTokenButton = styled.div<{ isUnlock?: boolean }>`
-  color: ${(props) => props.theme.colors.text};
-  height: 24px;
-  font-size: 12px;
-  width: ${(props) => (!props.isUnlock ? 'auto' : '108px')};
-  font-weight: 400;
-  text-align: center;
-  margin-bottom: 14px;
-  margin-left: 5px;
-  pointer-events: none;
-  display: inline-block;
-  cursor: pointer;
-  line-height: ${(props) => (!props.isUnlock ? '24px' : '20px')};
-
-  -webkit-user-select: none;
-  -khtml-user-select: none;
-  -moz-user-select: none;
-  -o-user-select: none;
-  user-select: none;
-
-  ${(props) => (props.isUnlock ? UnlockButtonCSS : null)};
 `;
 
 const DisconnectWalletButton = styled.div<{ isUnlock?: boolean }>`

@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext } from 'react';
-interface IBreakpoint {
+export interface IBreakpoint {
   xs?: boolean;
   sm?: boolean;
   md?: boolean;
