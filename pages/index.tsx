@@ -58,7 +58,9 @@ const Claim: React.FC<Props> = ({}) => {
     try {
       setIsLoading(true);
 
-      const status = await queryRPTStatus(user.secretjs, Date.now());
+      const unixTime = Math.floor(Date.now() / 1000);
+
+      const status = await queryRPTStatus(user.secretjs, unixTime);
 
       setCanVest(status.progress.claimed !== status.progress.unlocked);
       setIsLoading(false);
