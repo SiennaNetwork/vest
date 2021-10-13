@@ -6,6 +6,5 @@ declare namespace NodeJS {
     SECRET_RPC: string;
     SECRET_LCD: string;
     SIENNA_CONTRACT: string;
-    MGMT_CONTRACT: string;
   }
 }

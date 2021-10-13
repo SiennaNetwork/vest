@@ -92,13 +92,28 @@ const Claim: React.FC<Props> = ({}) => {
     setNextButtonLoading(true);
 
     try {
-      await callVestOnRPT(user.secretjsSend, process.env.RPT_CONTRACT, getFeeForExecute(500_000));
+      const result = await callVestOnRPT(
+        user.secretjsSend,
+        process.env.RPT_CONTRACT,
+        getFeeForExecute(2_000_000)
+      );
+
+      console.log('result: ', result);
 
       dispatch({ type: CHECK_KEPLR_REQUESTED });
 
       setNextButtonLoading(false);
 
-      notify.success(`Successfully called vest on RPT`, 4.5);
+      notify.success(
+        'Transaction successful',
+        0,
+        '',
+        'Please verify the transaction does not include any errors by clicking View Transaction above.',
+        'View transaction',
+        `${process.env.SCRT_EXPLORER_URL}/transactions/${result.transactionHash}`
+      );
+
+      // notify.success(`Successfully called vest on RPT`, 4.5, 'Title here', 'Animation text');
     } catch (error) {
       console.warn('Error', error);
 
