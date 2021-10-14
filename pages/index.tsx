@@ -98,7 +98,7 @@ const Claim: React.FC<Props> = ({}) => {
       const result = await callVestOnRPT(
         user.secretjsSend,
         process.env.RPT_CONTRACT,
-        getFeeForExecute(2_000_000)
+        getFeeForExecute(3_000_000)
       );
 
       console.log('result: ', result);
