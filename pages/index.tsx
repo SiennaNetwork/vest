@@ -120,7 +120,7 @@ const Claim: React.FC<Props> = ({}) => {
     } catch (error) {
       console.warn('Error', error);
 
-      notify.error(`Error calling vest on RPT`, 10, 'Error', JSON.stringify(error.message));
+      notify.error(`Error calling vest on RPT`, 0, 'Error', JSON.stringify(error.message));
 
       setNextButtonLoading(false);
     }
