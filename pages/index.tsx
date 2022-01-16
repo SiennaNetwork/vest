@@ -157,6 +157,30 @@ const Claim: React.FC<Props> = ({}) => {
     return isMobile;
   };
 
+  const renderStatus = () => {
+    if (!rptStatus) {
+      return 'Loading';
+    }
+
+    if (rptStatus.progress.claimed === rptStatus.progress.unlocked) {
+      return 'Nothing to vest ✅';
+    }
+
+    return 'RPT needs vesting';
+  };
+
+  const renderButtonText = () => {
+    if (!rptStatus) {
+      return 'Loading';
+    }
+
+    if (rptStatus.progress.claimed === rptStatus.progress.unlocked) {
+      return 'Nothing to vest';
+    }
+
+    return 'Vest RPT';
+  };
+
   return (
     <ClaimContainer>
       {checkWindowSize() && (
@@ -203,7 +227,7 @@ const Claim: React.FC<Props> = ({}) => {
 
             {user.isKeplrAuthorized ? (
               <ClaimButton
-                text={nextButtonLoading ? 'Working...' : 'Vest RPT'}
+                text={nextButtonLoading ? 'Working...' : renderButtonText()}
                 icon={!nextButtonLoading && '/icons/arrow-forward-light.svg'}
                 fontSize={nextButtonLoading ? '12px' : '14px'}
                 width="16.64"
@@ -244,6 +268,13 @@ const Claim: React.FC<Props> = ({}) => {
 
           <ClaimBodyRight $isKeplr={user.isKeplrAuthorized}>
             <h2>RPT Status</h2>
+
+            <RowDiv>
+              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+                Status
+              </StatusText>
+              <StatusText textAlign="right">{renderStatus()}</StatusText>
+            </RowDiv>
 
             <RowDiv>
               <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
