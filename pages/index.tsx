@@ -2,7 +2,8 @@ import styled from 'styled-components';
 import React, { useState, useEffect } from 'react';
 import { Row, Col } from 'reactstrap';
 import { useDispatch, useSelector } from 'react-redux';
-import { callVestOnRPT, queryRPTStatus } from '../api/vesting';
+import { queryRPTStatus, queryRewardPoolClock } from '../api/vesting';
+import { getRewardPools, triggerVest } from '../api/backend';
 import { useBreakpoint } from '../hooks/breakpoints';
 import { CHECK_KEPLR_REQUESTED, KEPLR_SIGN_OUT } from '../redux/actions/user';
 import { defaultColors } from '../styles/theme';
@@ -13,7 +14,7 @@ import ConnectWalletView from '../components/ConnectWalletView';
 import ClaimButton from '../components/ClaimButton';
 import { FaGithub } from 'react-icons/fa';
 import { IStore } from '../redux/store';
-import { getFeeForExecute } from '../api/utils';
+//import { getFeeForExecute } from '../api/utils';
 import { RPTStatus } from '../api/vesting';
 interface Props {
   onClickConnectWallet: (e: React.SyntheticEvent) => void;
@@ -28,6 +29,7 @@ const Claim: React.FC<Props> = ({}) => {
   const [canVest, setCanVest] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [rptStatus, setRptStatus] = useState<RPTStatus>(undefined);
+  const [rewardPoolsClock, setrewardPoolsClock] = useState([]);
 
   const user = useSelector((state: IStore) => state.user);
   const breakpoint = useBreakpoint();
@@ -62,6 +64,11 @@ const Claim: React.FC<Props> = ({}) => {
 
       const status = await queryRPTStatus(user.secretjs, unixTime);
 
+      const v3RewardPools = await getRewardPools();
+      const rewardPools = await queryRewardPoolClock(v3RewardPools, user.secretjsSend, unixTime);
+
+      setrewardPoolsClock(rewardPools);
+
       setCanVest(status.progress.claimed !== status.progress.unlocked);
       setIsLoading(false);
       setRptStatus(status);
@@ -95,11 +102,13 @@ const Claim: React.FC<Props> = ({}) => {
     setNextButtonLoading(true);
 
     try {
-      const result = await callVestOnRPT(
-        user.secretjsSend,
-        process.env.RPT_CONTRACT,
-        getFeeForExecute(3_000_000)
-      );
+      // const result = await callVestOnRPT(
+      //   user.secretjsSend,
+      //   process.env.RPT_CONTRACT,
+      //   getFeeForExecute(3_000_000)
+      // );
+
+      const result = await triggerVest();
 
       console.log('result: ', result);
 
@@ -167,6 +176,29 @@ const Claim: React.FC<Props> = ({}) => {
     }
 
     return 'RPT needs vesting';
+  };
+
+  const renderRewardPools = () => {
+    const indents = [];
+    if (!rewardPoolsClock || !rewardPoolsClock.length) {
+      return (
+        <RowDiv>
+          <StatusText textAlign="left">Loading...</StatusText>
+        </RowDiv>
+      );
+    }
+
+    for (let i = 0; i < rewardPoolsClock.length; i++) {
+      indents.push(
+        <RowDiv>
+          <StatusText textAlign="left">
+            {rewardPoolsClock[i].address.substring(0, 30)}...
+          </StatusText>
+          <StatusText textAlign="right">{rewardPoolsClock[i].clock}</StatusText>
+        </RowDiv>
+      );
+    }
+    return indents;
   };
 
   const renderButtonText = () => {
@@ -267,7 +299,22 @@ const Claim: React.FC<Props> = ({}) => {
           ></DummyRightSide>
 
           <ClaimBodyRight $isKeplr={user.isKeplrAuthorized}>
-            <h2>RPT Status</h2>
+            <h3>Reward Pools v3 Status</h3>
+
+            <RowDiv>
+              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+                Address
+              </StatusText>
+              <StatusText textAlign="right" bold>
+                Clock
+              </StatusText>
+            </RowDiv>
+
+            {renderRewardPools()}
+
+            <br />
+            <br />
+            <h3>RPT Status</h3>
 
             <RowDiv>
               <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
