@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Row, Col } from 'reactstrap';
 import { useDispatch, useSelector } from 'react-redux';
 import { queryRPTStatus, queryRewardPoolClock } from '../api/vesting';
-import { getRewardPools, triggerVest } from '../api/backend';
+import { getRewardPools } from '../api/backend';
 import { useBreakpoint } from '../hooks/breakpoints';
 import { CHECK_KEPLR_REQUESTED, KEPLR_SIGN_OUT } from '../redux/actions/user';
 import { defaultColors } from '../styles/theme';
@@ -11,7 +11,7 @@ import notify from '../utils/notifications';
 import NavBarLogo from '../components/NavBarLogo';
 import ConnectWalletButton from '../components/ConnectWalletButton';
 import ConnectWalletView from '../components/ConnectWalletView';
-import ClaimButton from '../components/ClaimButton';
+// import ClaimButton from '../components/ClaimButton';
 import { FaGithub } from 'react-icons/fa';
 import { IStore } from '../redux/store';
 //import { getFeeForExecute } from '../api/utils';
@@ -23,10 +23,10 @@ interface Props {
 const Claim: React.FC<Props> = ({}) => {
   const [showConnectWalletView, setShowConnectWalletView] = useState(false);
   const [showSwapAccountDrawer, setShowSwapAccountDrawer] = useState(false);
-  const [nextButtonLoading, setNextButtonLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  // const [nextButtonLoading, setNextButtonLoading] = useState(false);
+  // const [errorMessage, setErrorMessage] = useState('');
 
-  const [canVest, setCanVest] = useState(false);
+  // const [canVest, setCanVest] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [rptStatus, setRptStatus] = useState<RPTStatus>(undefined);
   const [rewardPoolsClock, setrewardPoolsClock] = useState([]);
@@ -69,13 +69,13 @@ const Claim: React.FC<Props> = ({}) => {
 
       setrewardPoolsClock(rewardPools);
 
-      setCanVest(status.progress.claimed !== status.progress.unlocked);
+      // setCanVest(status.progress.claimed !== status.progress.unlocked);
       setIsLoading(false);
       setRptStatus(status);
 
       console.warn('RPT status: ', status);
     } catch (error) {
-      setCanVest(false);
+      // setCanVest(false);
       setIsLoading(false);
 
       notify.error(`Failed getting RPT status`, 10, 'Error', JSON.stringify(error.message));
@@ -98,16 +98,11 @@ const Claim: React.FC<Props> = ({}) => {
     dispatch({ type: KEPLR_SIGN_OUT });
   };
 
-  const onClickVestNow = async () => {
+  /*const onClickVestNow = async () => {
     setNextButtonLoading(true);
 
     try {
-      // const result = await callVestOnRPT(
-      //   user.secretjsSend,
-      //   process.env.RPT_CONTRACT,
-      //   getFeeForExecute(3_000_000)
-      // );
-
+  
       const result = await triggerVest();
 
       console.log('result: ', result);
@@ -133,9 +128,9 @@ const Claim: React.FC<Props> = ({}) => {
 
       setNextButtonLoading(false);
     }
-  };
+  };*/
 
-  const connectKeplr = async () => {
+  /*const connectKeplr = async () => {
     if (!user.isKeplrInstalled) {
       setErrorMessage('You need to install Keplr Wallet');
 
@@ -148,7 +143,7 @@ const Claim: React.FC<Props> = ({}) => {
     }
 
     dispatch({ type: CHECK_KEPLR_REQUESTED });
-  };
+  };*/
 
   const goToGithub = () => {
     const a = document.createElement('a');
@@ -201,17 +196,17 @@ const Claim: React.FC<Props> = ({}) => {
     return indents;
   };
 
-  const renderButtonText = () => {
-    if (!rptStatus) {
-      return 'Loading';
-    }
+  // const renderButtonText = () => {
+  //   if (!rptStatus) {
+  //     return 'Loading';
+  //   }
 
-    if (rptStatus.progress.claimed === rptStatus.progress.unlocked) {
-      return 'Nothing to vest';
-    }
+  //   if (rptStatus.progress.claimed === rptStatus.progress.unlocked) {
+  //     return 'Nothing to vest';
+  //   }
 
-    return 'Vest RPT';
-  };
+  //   return 'Vest RPT';
+  // };
 
   return (
     <ClaimContainer>
@@ -257,7 +252,7 @@ const Claim: React.FC<Props> = ({}) => {
 
             {false && <h5>Before you can continue you need SCRT in your wallet.</h5>}
 
-            {user.isKeplrAuthorized ? (
+            {/* {user.isKeplrAuthorized ? (
               <ClaimButton
                 text={nextButtonLoading ? 'Working...' : renderButtonText()}
                 icon={!nextButtonLoading && '/icons/arrow-forward-light.svg'}
@@ -281,12 +276,23 @@ const Claim: React.FC<Props> = ({}) => {
                   backgroundColor: defaultColors.swapBlue,
                 }}
               />
-            )}
+            )} */}
 
-            <p style={{ marginTop: '24px' }}>
-              Manually call vest on RPT if needed. Any account can do this.
+            <p style={{ marginTop: 24 }}>Check the status of RPT here.</p>
+            <p>RPT is the contract that vests tokens to rewards.</p>
+
+            <p>
+              You can learn more about RPT on{' '}
+              <GithubA
+                href="https://github.com/SiennaNetwork/SiennaNetwork#architecture-overview"
+                target="_blank"
+                rel="noreferrer"
+              >
+                https://github.com/SiennaNetwork/SiennaNetwork
+              </GithubA>
             </p>
-            <ErrorText>{errorMessage}</ErrorText>
+
+            {/* <ErrorText>{errorMessage}</ErrorText> */}
           </ClaimBodyLeft>
 
           <DummyRightSide
@@ -411,6 +417,13 @@ const Claim: React.FC<Props> = ({}) => {
 };
 
 export default Claim;
+
+const GithubA = styled.a`
+  color: black;
+  &:hover {
+    opacity: 0.5;
+  }
+`;
 
 const StatusText = styled.div<{ textAlign: string; bold?: boolean }>`
   font-size: 13px;
