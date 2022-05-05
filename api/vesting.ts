@@ -1,5 +1,6 @@
 import { StdFee } from 'secretjs/types/types';
 import { SigningCosmWasmClient, CosmWasmClient } from 'secretjs';
+import moment from 'moment';
 
 // Claims vested tokens. Useful for investors.
 export const claimVestedTokens = (
@@ -43,31 +44,42 @@ export interface RPTStatus {
 export interface RewardPoolStatus {
   address: string;
   clock: number;
+  clock_should_be: number;
+  name: string;
 }
 
-export const queryRPTStatus = (secretjs: CosmWasmClient, unixTime: number): Promise<RPTStatus> => {
-  return secretjs.queryContractSmart(process.env.MGMT_CONTRACT, {
+export const queryRPTStatus = async (
+  secretjs: CosmWasmClient,
+  RPTAddress: string,
+  MGMTAddress: string
+): Promise<RPTStatus> => {
+  const result = await secretjs.queryContractSmart(MGMTAddress, {
     progress: {
-      address: process.env.RPT_CONTRACT,
-      time: unixTime,
+      address: RPTAddress,
+      time: Math.floor(Date.now() / 1000),
     },
   });
+  const status = result.progress ? result.progress : result;
+  status.elapsed = `${Math.round(status.elapsed / 86400)} days`;
+  status.launched = moment(status.launched, 'X').format('YYYY-MM-DD');
+  return status;
 };
 
 export const queryRewardPoolClock = (
   pools,
-  secretjs: SigningCosmWasmClient,
-  unixTime: number
+  secretjs: CosmWasmClient
 ): Promise<RewardPoolStatus[]> => {
   return Promise.all(
     pools.map(async (pool) => {
       return {
-        address: pool.rewards_contract,
+        address: pool.address,
         clock: (
-          await secretjs.queryContractSmart(pool.rewards_contract, {
-            rewards: { pool_info: { at: unixTime } },
+          await secretjs.queryContractSmart(pool.address, {
+            rewards: { pool_info: { at: Math.floor(Date.now() / 1000) } },
           })
         ).rewards.pool_info.clock.number,
+        clock_should_be: +moment().diff(moment(pool.created), 'days') - 1,
+        name: pool.name,
       };
     })
   );

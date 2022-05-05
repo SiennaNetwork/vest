@@ -3,33 +3,41 @@ import React, { useState, useEffect } from 'react';
 import { Row, Col } from 'reactstrap';
 import { useDispatch, useSelector } from 'react-redux';
 import { queryRPTStatus, queryRewardPoolClock } from '../api/vesting';
-import { getRewardPools } from '../api/backend';
+import { getRewardPools, callVestOnRPT } from '../api/backend';
 import { useBreakpoint } from '../hooks/breakpoints';
 import { CHECK_KEPLR_REQUESTED, KEPLR_SIGN_OUT } from '../redux/actions/user';
 import { defaultColors } from '../styles/theme';
-import notify from '../utils/notifications';
 import NavBarLogo from '../components/NavBarLogo';
 import ConnectWalletButton from '../components/ConnectWalletButton';
 import ConnectWalletView from '../components/ConnectWalletView';
-// import ClaimButton from '../components/ClaimButton';
 import { FaGithub } from 'react-icons/fa';
 import { IStore } from '../redux/store';
-//import { getFeeForExecute } from '../api/utils';
-import { RPTStatus } from '../api/vesting';
+import notify from '../utils/notifications';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import Box from '@mui/material/Box';
+
 interface Props {
   onClickConnectWallet: (e: React.SyntheticEvent) => void;
+}
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
 }
 
 const Claim: React.FC<Props> = ({}) => {
   const [showConnectWalletView, setShowConnectWalletView] = useState(false);
   const [showSwapAccountDrawer, setShowSwapAccountDrawer] = useState(false);
-  // const [nextButtonLoading, setNextButtonLoading] = useState(false);
-  // const [errorMessage, setErrorMessage] = useState('');
+  const [RPTData, setRPTData] = useState(undefined);
+  const [RPTStatusData, setRPTStatusData] = useState(undefined);
+  const [tabIndex, setTabIndex] = useState(0);
+  const [isVesting, setIsVesting] = useState(false);
 
-  // const [canVest, setCanVest] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [rptStatus, setRptStatus] = useState<RPTStatus>(undefined);
-  const [rewardPoolsClock, setrewardPoolsClock] = useState([]);
+  const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
+    setTabIndex(newValue);
+  };
 
   const user = useSelector((state: IStore) => state.user);
   const breakpoint = useBreakpoint();
@@ -43,10 +51,6 @@ const Claim: React.FC<Props> = ({}) => {
     if (user.secretjs && user.isKeplrInstalled) {
       setShowConnectWalletView(false);
     }
-
-    if (user.secretjs && !rptStatus) {
-      getRPTStatus();
-    }
   }, [user.secretjs, user.isKeplrInstalled]);
 
   useEffect(() => {
@@ -54,33 +58,88 @@ const Claim: React.FC<Props> = ({}) => {
       setShowConnectWalletView(false);
       setShowSwapAccountDrawer(false);
     }
+
+    if (user.secretjs && !RPTData) {
+      getRPTData();
+    }
   }, [user, showConnectWalletView]);
 
-  const getRPTStatus = async () => {
+  const TabPanel = (props: TabPanelProps) => {
+    const { children, value, index, ...other } = props;
+
+    return (
+      <div
+        role="tabpanel"
+        hidden={value !== index}
+        id={`simple-tabpanel-${index}`}
+        aria-labelledby={`simple-tab-${index}`}
+        {...other}
+      >
+        {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+      </div>
+    );
+  };
+
+  const getRPTData = async () => {
+    const v3RewardPools = await getRewardPools();
+    const data = v3RewardPools
+      .map((p) => p.rpt_address)
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .map((rpt_address) => {
+        const rewards = v3RewardPools.filter((pool) => pool.rpt_address === rpt_address);
+        return {
+          rpt_address: rewards[0].rpt_address,
+          mgmt_address: rewards[0].mgmt_address,
+          rewards: rewards.map((reward) => ({
+            address: reward.rewards_contract,
+            created: reward.created,
+            name: reward.inc_token.name,
+          })),
+          token: rewards[0].rewards_token.symbol,
+        };
+      });
+    setRPTData(data);
+
+    const rptStatus = await Promise.all(
+      data.map(async (entry) => {
+        const status = {
+          success: false,
+          result: undefined,
+        };
+        try {
+          const rptResult = await queryRPTStatus(
+            user.secretjs,
+            entry.rpt_address,
+            entry.mgmt_address
+          );
+          status.success = true;
+          status.result = rptResult.progress ? rptResult.progress : rptResult;
+        } catch (e) {
+          status.result = e.toString();
+        }
+        return {
+          pools: await queryRewardPoolClock(entry.rewards, user.secretjs),
+          status: status,
+          rpt_address: entry.rpt_address,
+          partner: entry.rpt_address !== process.env.RPT_CONTRACT,
+        };
+      })
+    );
+
+    setRPTStatusData(rptStatus);
+  };
+
+  const callVest = async (address, partner) => {
+    setIsVesting(true);
+    notify.success('Please wait, it may take up to a couple minutes', 3, 'Calling Vest');
     try {
-      setIsLoading(true);
-
-      const unixTime = Math.floor(Date.now() / 1000);
-
-      const status = await queryRPTStatus(user.secretjs, unixTime);
-
-      const v3RewardPools = await getRewardPools();
-      const rewardPools = await queryRewardPoolClock(v3RewardPools, user.secretjsSend, unixTime);
-
-      setrewardPoolsClock(rewardPools);
-
-      // setCanVest(status.progress.claimed !== status.progress.unlocked);
-      setIsLoading(false);
-      setRptStatus(status);
-
-      console.warn('RPT status: ', status);
-    } catch (error) {
-      // setCanVest(false);
-      setIsLoading(false);
-
-      notify.error(`Failed getting RPT status`, 10, 'Error', JSON.stringify(error.message));
-      console.warn('Error getting RPT status: ', error);
+      const result = await callVestOnRPT(address, partner);
+      if (result.success) notify.success('Vested RPT');
+      else notify.error(`Failed vesting RPT`, 10, 'Error', result.error);
+    } catch (e) {
+      notify.error(`Failed vesting RPT`, 10, 'Error', e.toString());
     }
+    setIsVesting(false);
   };
 
   // user clicks on connect/disconnect wallet button
@@ -98,60 +157,12 @@ const Claim: React.FC<Props> = ({}) => {
     dispatch({ type: KEPLR_SIGN_OUT });
   };
 
-  /*const onClickVestNow = async () => {
-    setNextButtonLoading(true);
-
-    try {
-  
-      const result = await triggerVest();
-
-      console.log('result: ', result);
-
-      dispatch({ type: CHECK_KEPLR_REQUESTED });
-
-      setNextButtonLoading(false);
-
-      notify.success(
-        'Transaction successful',
-        0,
-        '',
-        'Please verify the transaction does not include any errors by clicking View Transaction above.',
-        'View transaction',
-        `${process.env.SCRT_EXPLORER_URL}/transactions/${result.transactionHash}`
-      );
-
-      // notify.success(`Successfully called vest on RPT`, 4.5, 'Title here', 'Animation text');
-    } catch (error) {
-      console.warn('Error', error);
-
-      notify.error(`Error calling vest on RPT`, 0, 'Error', JSON.stringify(error.message));
-
-      setNextButtonLoading(false);
-    }
-  };*/
-
-  /*const connectKeplr = async () => {
-    if (!user.isKeplrInstalled) {
-      setErrorMessage('You need to install Keplr Wallet');
-
-      const a = document.createElement('a');
-      a.href = 'https://wallet.keplr.app/';
-      a.target = '_blank';
-      a.rel = 'noopener norefferer';
-      a.click();
-      return;
-    }
-
-    dispatch({ type: CHECK_KEPLR_REQUESTED });
-  };*/
-
   const goToGithub = () => {
     const a = document.createElement('a');
     a.href = 'https://github.com/SiennaNetwork/vest';
     a.target = '_blank';
     a.rel = 'noopener norefferer';
     a.click();
-    return;
   };
 
   const checkWindowSize = () => {
@@ -161,52 +172,133 @@ const Claim: React.FC<Props> = ({}) => {
     return isMobile;
   };
 
-  const renderStatus = () => {
-    if (!rptStatus) {
-      return 'Loading';
-    }
-
-    if (rptStatus.progress.claimed === rptStatus.progress.unlocked) {
-      return 'Nothing to vest ✅';
-    }
-
-    return 'RPT needs vesting';
+  const renderRPTData = () => {
+    if (!RPTData) return 'Loading...';
+    return (
+      <Box sx={{ width: '100%' }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs value={tabIndex} onChange={handleChange} aria-label="">
+            {RPTData.map((RPT, index) => (
+              <Tab
+                key={index}
+                label={RPT.token}
+                {...{
+                  id: `simple-tab-${index}`,
+                  'aria-controls': `simple-tabpanel-${index}`,
+                }}
+              />
+            ))}
+          </Tabs>
+        </Box>
+        {RPTData.map((RPT, index) => (
+          <TabPanel key={index} value={tabIndex} index={index}>
+            {renderRPTResponse(RPT.rpt_address)}
+          </TabPanel>
+        ))}
+      </Box>
+    );
   };
 
-  const renderRewardPools = () => {
-    const indents = [];
-    if (!rewardPoolsClock || !rewardPoolsClock.length) {
-      return (
+  const renderRPTResponse = (rpt_address) => {
+    if (!RPTStatusData) return 'Loading...';
+    const data = RPTStatusData.find((entry) => entry.rpt_address === rpt_address);
+    return (
+      <div>
+        <h3>Reward Pools Status</h3>
         <RowDiv>
-          <StatusText textAlign="left">Loading...</StatusText>
-        </RowDiv>
-      );
-    }
-
-    for (let i = 0; i < rewardPoolsClock.length; i++) {
-      indents.push(
-        <RowDiv>
-          <StatusText textAlign="left">
-            {rewardPoolsClock[i].address.substring(0, 30)}...
+          <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+            Name
           </StatusText>
-          <StatusText textAlign="right">{rewardPoolsClock[i].clock}</StatusText>
+          <StatusText textAlign="right" bold>
+            Clock
+          </StatusText>
         </RowDiv>
-      );
-    }
-    return indents;
+        <Container>
+          {data.pools.map((pool, index) => (
+            <RowDiv key={index}>
+              <StatusText textAlign="left">{pool.name}</StatusText>
+              <StatusText textAlign="right">
+                {pool.clock} | {pool.clock_should_be}
+              </StatusText>
+            </RowDiv>
+          ))}
+        </Container>
+        <br />
+        <br />
+        <h3>RPT Status</h3>
+
+        {!data.status.success && (
+          <div>
+            <RowDiv>
+              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+                {data.status.result}
+              </StatusText>
+            </RowDiv>
+          </div>
+        )}
+
+        {data.status.success && (
+          <div>
+            <RowDiv>
+              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+                Status
+              </StatusText>
+              <StatusText textAlign="right">
+                {data.status.result.claimed === data.status.result.unlocked && (
+                  <span>Nothing to vest ✅</span>
+                )}
+                {data.status.result.claimed !== data.status.result.unlocked && (
+                  <span>RPT needs vesting</span>
+                )}
+              </StatusText>
+            </RowDiv>
+
+            <RowDiv>
+              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+                Claimed
+              </StatusText>
+              <StatusText textAlign="right">{data.status.result.claimed}</StatusText>
+            </RowDiv>
+
+            <RowDiv>
+              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+                Unlocked
+              </StatusText>
+              <StatusText textAlign="right">{data.status.result.unlocked}</StatusText>
+            </RowDiv>
+
+            <RowDiv>
+              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+                Elapsed
+              </StatusText>
+              <StatusText textAlign="right">{data.status.result.elapsed}</StatusText>
+            </RowDiv>
+
+            <RowDiv>
+              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
+                Launched
+              </StatusText>
+              <StatusText textAlign="right">{data.status.result.launched}</StatusText>
+            </RowDiv>
+          </div>
+        )}
+        <br />
+        {data.status.result.claimed !== data.status.result.unlocked && (
+          <ViewSienna
+            disabled={isVesting}
+            isSwapComplete={false}
+            onClick={() => {
+              callVest(data.rpt_address, data.partner);
+            }}
+          >
+            {isVesting ? 'Vesting...' : 'Vest RPT'}
+          </ViewSienna>
+        )}
+
+        <div style={{ width: '319px', marginBottom: '88px' }}></div>
+      </div>
+    );
   };
-
-  // const renderButtonText = () => {
-  //   if (!rptStatus) {
-  //     return 'Loading';
-  //   }
-
-  //   if (rptStatus.progress.claimed === rptStatus.progress.unlocked) {
-  //     return 'Nothing to vest';
-  //   }
-
-  //   return 'Vest RPT';
-  // };
 
   return (
     <ClaimContainer>
@@ -250,34 +342,6 @@ const Claim: React.FC<Props> = ({}) => {
           <ClaimBodyLeft xs="12" sm="12" md="12" lg="6" xl="6" $isKeplr={user.isKeplrAuthorized}>
             <h1>Vest RPT</h1>
 
-            {false && <h5>Before you can continue you need SCRT in your wallet.</h5>}
-
-            {/* {user.isKeplrAuthorized ? (
-              <ClaimButton
-                text={nextButtonLoading ? 'Working...' : renderButtonText()}
-                icon={!nextButtonLoading && '/icons/arrow-forward-light.svg'}
-                fontSize={nextButtonLoading ? '12px' : '14px'}
-                width="16.64"
-                height="16"
-                onClick={onClickVestNow}
-                disabled={isLoading || !canVest}
-                prefixIcon={nextButtonLoading}
-              />
-            ) : (
-              <ClaimButton
-                text="Connect your Keplr Wallet"
-                icon="/icons/wallet-light.svg"
-                fontSize="14px"
-                width="16.64"
-                height="16"
-                onClick={connectKeplr}
-                disabled={isLoading || !canVest}
-                containerStyle={{
-                  backgroundColor: defaultColors.swapBlue,
-                }}
-              />
-            )} */}
-
             <p style={{ marginTop: 24 }}>Check the status of RPT here.</p>
             <p>RPT is the contract that vests tokens to rewards.</p>
 
@@ -304,88 +368,7 @@ const Claim: React.FC<Props> = ({}) => {
             $isKeplr={user.isKeplrAuthorized}
           ></DummyRightSide>
 
-          <ClaimBodyRight $isKeplr={user.isKeplrAuthorized}>
-            <h3>Reward Pools v3 Status</h3>
-
-            <RowDiv>
-              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
-                Address
-              </StatusText>
-              <StatusText textAlign="right" bold>
-                Clock
-              </StatusText>
-            </RowDiv>
-
-            {renderRewardPools()}
-
-            <br />
-            <br />
-            <h3>RPT Status</h3>
-
-            <RowDiv>
-              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
-                Status
-              </StatusText>
-              <StatusText textAlign="right">{renderStatus()}</StatusText>
-            </RowDiv>
-
-            <RowDiv>
-              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
-                Claimed
-              </StatusText>
-              <StatusText textAlign="right">
-                {rptStatus ? rptStatus.progress.claimed : 'Loading'}
-              </StatusText>
-            </RowDiv>
-
-            <RowDiv>
-              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
-                Unlocked
-              </StatusText>
-              <StatusText textAlign="right">
-                {rptStatus ? rptStatus.progress.unlocked : 'Loading'}
-              </StatusText>
-            </RowDiv>
-
-            <RowDiv>
-              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
-                Elapsed
-              </StatusText>
-              <StatusText textAlign="right">
-                {rptStatus ? rptStatus.progress.elapsed : 'Loading'}
-              </StatusText>
-            </RowDiv>
-
-            <RowDiv>
-              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
-                Launched
-              </StatusText>
-              <StatusText textAlign="right">
-                {rptStatus ? rptStatus.progress.launched : 'Loading'}
-              </StatusText>
-            </RowDiv>
-
-            <RowDiv>
-              <StatusText textAlign="left" bold style={{ marginRight: 20 }}>
-                Time
-              </StatusText>
-              <StatusText textAlign="right">
-                {rptStatus ? rptStatus.progress.time : 'Loading'}
-              </StatusText>
-            </RowDiv>
-
-            <div style={{ width: '319px', marginBottom: '88px' }}>
-              <ViewSienna
-                disabled={isLoading}
-                isSwapComplete={false}
-                onClick={() => {
-                  getRPTStatus();
-                }}
-              >
-                {isLoading ? 'Checking...' : 'Check Status'}
-              </ViewSienna>
-            </div>
-          </ClaimBodyRight>
+          <ClaimBodyRight $isKeplr={user.isKeplrAuthorized}>{renderRPTData()}</ClaimBodyRight>
         </ClaimBody>
       )}
 
@@ -437,6 +420,14 @@ const RowDiv = styled.div`
   width: 310px;
 `;
 
+const Container = styled.div`
+  display: block;
+  justify-content: space-between;
+  max-height: 300px;
+  display: block;
+  overflow-y: scroll;
+`;
+
 const ClaimContainer = styled.div`
   padding: 0;
   margin: 0;
@@ -483,19 +474,6 @@ const ClaimTopNavBarRight = styled.div<{ $isAuthorized?: boolean }>`
     flex-direction: column;
     align-items: flex-end;
   }
-`;
-
-const ViewSienna = styled.button<{ isSwapComplete?: boolean }>`
-  width: 184px;
-  height: 40px;
-  border: 1px solid ${defaultColors.white};
-  background: ${(props) => (props.isSwapComplete ? defaultColors.swapBlue : defaultColors.primary)};
-  color: ${(props) => (props.isSwapComplete ? '#fff' : '#fff')};
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: 20px;
-  cursor: pointer;
-  margin-top: 24px;
 `;
 
 const ClaimBodyMobile = styled(Row)`
@@ -598,8 +576,7 @@ const DummyRightSide = styled(Col)<{ $isKeplr: boolean }>`
 const ClaimBodyRight = styled.div<{ $isKeplr?: boolean }>`
   position: absolute;
   width: ${(props) => (props.$isKeplr ? '50%' : '0%')};
-  height: 90vh;
-  top: 10vh;
+  top: 20%;
   right: 0;
   overflow: hidden;
 
@@ -645,7 +622,15 @@ const DisconnectWalletButton = styled.div<{ isUnlock?: boolean }>`
   user-select: none;
 `;
 
-const ErrorText = styled.div`
-  color: ${(props) => props.theme.colors.warning};
-  text-align: center;
+const ViewSienna = styled.button<{ isSwapComplete?: boolean }>`
+  width: 184px;
+  height: 40px;
+  border: 1px solid ${defaultColors.white};
+  background: ${(props) => (props.isSwapComplete ? defaultColors.swapBlue : defaultColors.primary)};
+  color: ${(props) => (props.isSwapComplete ? '#fff' : '#fff')};
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 20px;
+  cursor: pointer;
+  margin-top: 24px;
 `;
